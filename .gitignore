@@ -1,1 +1,5 @@
-Contents/MacOS/SetResX
+.DS_Store
+build/
+dist/*
+!dist/RetinaDisplayMaster-m1-arm64.zip
+*.dSYM/
