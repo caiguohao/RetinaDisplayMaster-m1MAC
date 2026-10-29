@@ -11,7 +11,7 @@
 
 namespace {
 
-constexpr const char *kVersion = "1.0.1";
+constexpr const char *kVersion = "1.2.0";
 
 struct Options {
     bool help = false;
@@ -230,6 +230,74 @@ bool ModeMatches(const RDMDisplayMode &mode,
     return true;
 }
 
+bool MatchesTargetResolution(const RDMDisplayMode &mode,
+                             int width,
+                             int height) {
+    return mode.width == static_cast<size_t>(width) &&
+           mode.height == static_cast<size_t>(height);
+}
+
+bool MatchesTargetScale(const RDMDisplayMode &mode, double scale) {
+    return SameDouble(mode.scale, scale);
+}
+
+bool MatchesRequestedProperties(const RDMDisplayMode &mode,
+                                const Options &options) {
+    if (options.refreshSet &&
+        !SameDouble(mode.refreshRate, options.refresh)) {
+        return false;
+    }
+    if (options.bitsSet && mode.bitsPerPixel != options.bits) {
+        return false;
+    }
+    return true;
+}
+
+bool IsPreferredRefresh(const RDMDisplayMode &mode,
+                        const Options &options,
+                        bool hasCurrent,
+                        const RDMDisplayMode &current) {
+    if (options.refreshSet) {
+        return true;
+    }
+    return hasCurrent && SameDouble(mode.refreshRate, current.refreshRate);
+}
+
+RDMDisplayMode *FindPreferredMode(RDMDisplayMode *modes,
+                                  size_t modeCount,
+                                  const Options &options,
+                                  const RDMDisplayMode &current,
+                                  bool hasCurrent,
+                                  int targetWidth,
+                                  int targetHeight,
+                                  double targetScale,
+                                  bool requireCurrentScale) {
+    RDMDisplayMode *preferred = nullptr;
+    RDMDisplayMode *highestRefresh = nullptr;
+
+    for (size_t index = 0; index < modeCount; ++index) {
+        RDMDisplayMode &mode = modes[index];
+        if (!MatchesTargetResolution(mode, targetWidth, targetHeight) ||
+            !MatchesRequestedProperties(mode, options)) {
+            continue;
+        }
+        if (requireCurrentScale &&
+            !MatchesTargetScale(mode, targetScale)) {
+            continue;
+        }
+
+        if (!highestRefresh || mode.refreshRate > highestRefresh->refreshRate) {
+            highestRefresh = &mode;
+        }
+        if (IsPreferredRefresh(mode, options, hasCurrent, current)) {
+            preferred = &mode;
+            break;
+        }
+    }
+
+    return preferred ? preferred : highestRefresh;
+}
+
 }  // namespace
 
 int cmdline_main(int argc, const char *argv[]) {
@@ -368,37 +436,33 @@ int cmdline_main(int argc, const char *argv[]) {
     int targetHeight = options.heightSet
         ? options.height
         : static_cast<int>(current.height);
-    double targetScale = options.scaleSet ? options.scale : current.scale;
+    const double currentScale = hasCurrent ? current.scale : options.scale;
+    const double targetScale = options.scaleSet ? options.scale : currentScale;
 
-    RDMDisplayMode *selected = nullptr;
-    RDMDisplayMode *highestRefresh = nullptr;
-    for (size_t index = 0; index < modeCount; ++index) {
-        RDMDisplayMode &mode = modes[index];
-        if (!ModeMatches(mode, options,
-                         targetWidth, targetHeight, targetScale)) {
-            continue;
-        }
-        if (!highestRefresh || mode.refreshRate > highestRefresh->refreshRate) {
-            highestRefresh = &mode;
-        }
-        if (!options.refreshSet && hasCurrent &&
-            SameDouble(mode.refreshRate, current.refreshRate)) {
-            selected = &mode;
-            break;
+    // Unspecified dimensions always follow the current logical resolution.
+    // Keep the current scale when possible. A refresh-only change may fall
+    // back to another backing scale because some displays expose, for
+    // example, 120 Hz HiDPI but only 60 Hz at scale 1.0 for that resolution.
+    RDMDisplayMode *selected = FindPreferredMode(
+        modes, modeCount, options, current, hasCurrent,
+        targetWidth, targetHeight, targetScale,
+        options.scaleSet || hasCurrent);
+    if (!selected && !options.scaleSet && options.refreshSet) {
+        selected = FindPreferredMode(
+            modes, modeCount, options, current, hasCurrent,
+            targetWidth, targetHeight, targetScale, false);
+    }
+
+    if (!selected) {
+        std::fprintf(stderr, "Error: no mode matched %dx%d",
+                     targetWidth, targetHeight);
+        if (options.scaleSet || !options.refreshSet) {
+            std::fprintf(stderr, " at scale %.2f", targetScale);
         }
         if (options.refreshSet) {
-            selected = &mode;
-            break;
+            std::fprintf(stderr, " at %.0f Hz", options.refresh);
         }
-    }
-    if (!selected) {
-        selected = highestRefresh;
-    }
-
-    if (!selected) {
-        std::fprintf(stderr,
-                     "Error: no mode matched %dx%d at scale %.2f.\n",
-                     targetWidth, targetHeight, targetScale);
+        std::fprintf(stderr, ".\n");
         if (hasCurrent) {
             RDMReleaseDisplayMode(&current);
         }
@@ -414,7 +478,7 @@ int cmdline_main(int argc, const char *argv[]) {
         return 0;
     }
 
-    CGError error = RDMSetDisplayMode(display, selected->mode);
+    CGError error = RDMSetDisplayMode(display, selected);
     if (error != kCGErrorSuccess) {
         std::fprintf(stderr,
                      "Error: CoreGraphics rejected the display mode (CGError %d).\n",

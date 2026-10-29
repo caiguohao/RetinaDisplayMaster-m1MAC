@@ -20,6 +20,8 @@ typedef struct RDMDisplayMode {
     double scale;
     int32_t ioDisplayModeID;
     int bitsPerPixel;
+    bool usesNativeMode;
+    int32_t nativeModeIndex;
 } RDMDisplayMode;
 
 bool RDMGetOnlineDisplays(CGDirectDisplayID **displays, uint32_t *count);
@@ -32,8 +34,10 @@ bool RDMDisplayModesEqual(const RDMDisplayMode *left,
                           const RDMDisplayMode *right);
 bool RDMDisplayModesHaveSameResolution(const RDMDisplayMode *left,
                                        const RDMDisplayMode *right);
+bool RDMDisplayModesHaveSameLogicalResolution(const RDMDisplayMode *left,
+                                              const RDMDisplayMode *right);
 CGError RDMSetDisplayMode(CGDirectDisplayID display,
-                          CGDisplayModeRef mode);
+                          const RDMDisplayMode *mode);
 void RDMReleaseDisplayMode(RDMDisplayMode *mode);
 void RDMFreeDisplayModes(RDMDisplayMode *modes, size_t count);
 

@@ -4,7 +4,8 @@ A native **arm64** status-bar utility for switching macOS display modes,
 including HiDPI modes and non-default resolutions. This version is based on
 [Arya McCarthy's RetinaDisplayMaster](https://github.com/aryamccarthy/RetinaDisplayMaster)
 and replaces its Intel-era binary and private CoreGraphics APIs with public,
-Apple Silicon-compatible APIs.
+Apple Silicon-compatible APIs, plus a guarded SkyLight fallback for modes that
+macOS hides from the public catalog.
 
 ## Why this fork exists
 
@@ -15,6 +16,8 @@ enumerate or change modes on Apple Silicon. This fork:
 - builds a native `arm64` application;
 - uses `CGDisplayCopyAllDisplayModes`, `CGDisplayModeGetPixelWidth/Height`,
   `CGDisplayModeGetRefreshRate`, and `CGConfigureDisplayWithDisplayMode`;
+- dynamically resolves SkyLight mode APIs when available and merges hidden
+  HiDPI/high-refresh modes generically for every connected display;
 - identifies HiDPI modes from logical size, pixel size, and backing scale;
 - keeps the selected mode permanently with `kCGConfigurePermanently`;
 - updates the menu after display reconfiguration and hot-plug events;
@@ -77,8 +80,10 @@ APP="build/RetinaDisplayMaster.app/Contents/MacOS/SetResX"
 
 `--scale 2` selects a HiDPI mode. Unspecified width, height, or scale values
 are taken from the current mode when changing modes. Add `--refresh 60` to
-choose a refresh rate. With no filters, `--modes` lists every available desktop
-mode; any supplied filters are applied directly.
+choose a refresh rate for the current logical resolution; if that rate is only
+available at another backing scale, the scale changes automatically. With no
+filters, `--modes` lists every available desktop mode; any supplied filters are
+applied directly.
 
 All options:
 
@@ -105,5 +110,6 @@ a Developer ID certificate and submit it to Apple's notarization service.
 ## Attribution and license
 
 Original Retina Display Master by Paul Griffin, with UI and HiDPI improvements
-by Arya McCarthy. This Apple Silicon adaptation preserves the original project's
-GNU General Public License v3.0 licensing.
+by Arya McCarthy. Apple M-series chip adaptation by
+[caiguohao](https://github.com/caiguohao). This fork preserves the original
+project's GNU General Public License v3.0 licensing.

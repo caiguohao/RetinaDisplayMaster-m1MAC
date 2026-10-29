@@ -4,7 +4,7 @@
 
 - (instancetype)initWithDisplay:(CGDirectDisplayID)display
                            mode:(const RDMDisplayMode *)mode {
-    if (!mode || !mode->mode) {
+    if (!mode) {
         return nil;
     }
 
@@ -12,7 +12,7 @@
     if (self) {
         _display = display;
         _mode = *mode;
-        _mode.mode = CGDisplayModeRetain(mode->mode);
+        _mode.mode = mode->mode ? CGDisplayModeRetain(mode->mode) : nullptr;
         [self setTextFormat:0];
     }
     return self;

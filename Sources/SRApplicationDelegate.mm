@@ -184,8 +184,8 @@ NSMutableArray<ResMenuItem *> *SortedMenuItems(
                 for (size_t modeIndex = 0;
                      modeIndex < modeCount;
                      ++modeIndex) {
-                    if (!RDMDisplayModesHaveSameResolution(&current,
-                                                           &modes[modeIndex])) {
+                    if (!RDMDisplayModesHaveSameLogicalResolution(
+                            &current, &modes[modeIndex])) {
                         continue;
                     }
                     ResMenuItem *item =
@@ -196,9 +196,17 @@ NSMutableArray<ResMenuItem *> *SortedMenuItems(
                     }
                     NSNumber *key = @(llround(item.refreshRate * 100.0));
                     ResMenuItem *existing = byRefresh[key];
+                    const bool candidateUsesCurrentResolution =
+                        RDMDisplayModesHaveSameResolution(
+                            &current, item.modeInfo);
+                    const bool existingUsesCurrentResolution = existing &&
+                        RDMDisplayModesHaveSameResolution(
+                            &current, existing.modeInfo);
                     if (!existing ||
                         RDMDisplayModesEqual(&current, item.modeInfo) ||
-                        item.refreshRate > existing.refreshRate) {
+                        candidateUsesCurrentResolution ||
+                        (!existingUsesCurrentResolution &&
+                         item.scale > existing.scale)) {
                         byRefresh[key] = item;
                     }
                 }
@@ -273,7 +281,7 @@ NSMutableArray<ResMenuItem *> *SortedMenuItems(
 }
 
 - (void)setMode:(ResMenuItem *)item {
-    CGError error = RDMSetDisplayMode(item.displayID, item.displayMode);
+    CGError error = RDMSetDisplayMode(item.displayID, item.modeInfo);
     if (error != kCGErrorSuccess) {
         NSAlert *alert = [[NSAlert alloc] init];
         alert.alertStyle = NSAlertStyleWarning;

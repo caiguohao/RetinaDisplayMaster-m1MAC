@@ -8,7 +8,7 @@ on:
       tag:
         description: Release tag to package
         required: true
-        default: v1.0.1
+        default: v1.2.0
         type: string
 
 permissions:
